@@ -138,6 +138,7 @@ const HUD_CSS = `
 }
 .db-popover.open { display: flex; }
 .db-header {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -147,8 +148,11 @@ const HUD_CSS = `
 }
 .db-title { font-size: 12px; font-weight: 600; color: #ededed; display: flex; align-items: center; gap: 8px; }
 .db-body {
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 12px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -186,11 +190,13 @@ const HUD_CSS = `
   border: 1px solid rgba(237, 237, 237, 0.08);
   font-size: 11px;
   color: #d4d4d8;
-  overflow-x: auto;
+  max-height: 180px;
+  overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
 }
 .db-footer {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -278,6 +284,9 @@ const HUD_CSS = `
 .db-snap-card {
   width: 560px;
   max-width: 100%;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
   background: #141415;
   border: 1px solid rgba(237, 237, 237, 0.16);
   border-radius: 14px;
@@ -631,7 +640,7 @@ export function createHud(options: {
     // Position inside viewport bounds near anchor element
     popover.classList.add('open');
     const pw = 430;
-    const ph = Math.min(520, window.innerHeight - 32);
+    const targetMaxH = Math.min(540, window.innerHeight - 72);
     let left = 24;
     let top = 24;
     if (anchorRect) {
@@ -639,10 +648,12 @@ export function createHud(options: {
         ? anchorRect.right + 12
         : Math.max(12, anchorRect.left - pw - 12);
       if (left + pw > window.innerWidth - 12) left = Math.max(12, window.innerWidth - pw - 12);
-      top = Math.min(Math.max(12, anchorRect.top), window.innerHeight - ph - 12);
+      top = Math.min(Math.max(12, anchorRect.top), Math.max(12, window.innerHeight - targetMaxH - 60));
     }
+    const availableHeight = Math.max(220, window.innerHeight - Math.round(top) - 60);
     popover.style.left = `${Math.round(left)}px`;
     popover.style.top = `${Math.round(top)}px`;
+    popover.style.maxHeight = `${Math.min(targetMaxH, availableHeight)}px`;
   }
 
   function renderDrawer(report: OverfetchReport) {
