@@ -313,6 +313,90 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+function isLocalDevOrigin(): boolean {
+  if (typeof window === 'undefined') return true;
+  const h = window.location.hostname.toLowerCase();
+  return h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '[::1]' || h.endsWith('.local');
+}
+
+function isMinifiedComponentName(name: string): boolean {
+  return name.length <= 2 || /^[a-z]\d+$/.test(name);
+}
+
+function renderAuditCardPng(report: OverfetchReport, latestCapsule: BlameCapsule | null): string | null {
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 880;
+    canvas.height = 460;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    ctx.fillStyle = '#0f0f10';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = 'rgba(237,237,237,0.14)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(16, 16, canvas.width - 32, canvas.height - 32);
+
+    ctx.fillStyle = '#ededed';
+    ctx.font = '600 22px system-ui, -apple-system, sans-serif';
+    ctx.fillText('dom-blame Audit Snapshot', 40, 62);
+
+    ctx.fillStyle = '#85858b';
+    ctx.font = '14px ui-monospace, Menlo, Consolas, monospace';
+    ctx.fillText(report.pageUrl.slice(0, 76), 40, 90);
+
+    const kpis: Array<[string, string, string]> = [
+      ['OVERFETCH', `${Math.round(report.overallOverfetchRatio * 100)}%`, report.overallOverfetchRatio > 0.5 ? '#e5484d' : '#4cc38a'],
+      ['WIRE / DOM', `${report.totalSchemaFields} / ${report.renderedSchemaFields}`, '#ededed'],
+      ['SENSITIVE', `${report.sensitiveFindingsCount}`, report.sensitiveFindingsCount > 0 ? '#e5484d' : '#4cc38a'],
+      ['N+1 STORMS', `${report.requestStorms.length}`, report.requestStorms.length > 0 ? '#e5484d' : '#4cc38a'],
+    ];
+    kpis.forEach(([label, val, color], i) => {
+      const x = 40 + i * 204;
+      ctx.fillStyle = '#18181b';
+      ctx.fillRect(x, 114, 188, 84);
+      ctx.strokeStyle = 'rgba(237,237,237,0.1)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, 114, 188, 84);
+      ctx.fillStyle = '#85858b';
+      ctx.font = '600 11px system-ui, sans-serif';
+      ctx.fillText(label, x + 14, 138);
+      ctx.fillStyle = color;
+      ctx.font = '600 26px ui-monospace, Menlo, Consolas, monospace';
+      ctx.fillText(val, x + 14, 178);
+    });
+
+    let y = 236;
+    ctx.fillStyle = '#a1a1a6';
+    ctx.font = '600 13px system-ui, sans-serif';
+    ctx.fillText('TOP ENDPOINTS', 40, y);
+    y += 24;
+    ctx.font = '13px ui-monospace, Menlo, Consolas, monospace';
+    for (const ep of report.endpoints.slice(0, 5)) {
+      ctx.fillStyle = ep.sensitiveCount > 0 ? '#f28b8e' : '#d4d4d8';
+      const line = `${ep.method} ${ep.endpoint}`.slice(0, 52);
+      const stats = `${ep.renderedFields}/${ep.totalSchemaFields} rendered · ${Math.round(ep.overfetchRatio * 100)}% waste · ${ep.avgDurationMs}ms`;
+      ctx.fillText(line, 40, y);
+      ctx.fillStyle = '#85858b';
+      ctx.fillText(stats, 480, y);
+      y += 26;
+    }
+
+    if (latestCapsule?.schemaDrifts.length) {
+      const d = latestCapsule.schemaDrifts[0];
+      ctx.fillStyle = '#f28b8e';
+      ctx.fillText(`DRIFT: "${d.expectedKey}" (undefined) <- ${d.jsonPath}`, 40, 418);
+    } else {
+      ctx.fillStyle = '#6f6f76';
+      ctx.fillText(`Generated ${new Date().toISOString()}`, 40, 418);
+    }
+
+    return canvas.toDataURL('image/png');
+  } catch {
+    return null;
+  }
+}
+
 export interface HudController {
   setInspectMode: (active: boolean) => void;
   isInspectMode: () => boolean;
@@ -556,7 +640,7 @@ export function createHud(options: {
     const loc = comp?.fileName
       ? `${comp.fileName}${comp.lineNumber ? `:${comp.lineNumber}` : ''}`
       : comp
-        ? 'React Fiber'
+        ? (isMinifiedComponentName(comp.name) ? 'Prod React (minified)' : 'React Fiber')
         : 'DOM fallback';
     l2h.append(el('span', 'db-layer-name', '2. Component'), el('span', 'mono', loc));
     l2.appendChild(l2h);
@@ -570,7 +654,7 @@ export function createHud(options: {
         l2.appendChild(pre);
       }
     } else {
-      l2.appendChild(el('div', 'db-sub', 'No React Fiber found on this element.'));
+      l2.appendChild(el('div', 'db-sub', 'No React Fiber found on this element (SSR HTML or non-React root).'));
     }
 
     for (const drift of capsule.schemaDrifts) {
@@ -627,7 +711,15 @@ export function createHud(options: {
         l4.appendChild(el('div', 'db-sub mono', `+${capsule.sqlQueries.length - 4} more SQL queries (possible N+1)`));
       }
     } else {
-      l4.appendChild(el('div', 'db-sub', 'No SQL trace attached (connect @dom-blame/server middleware).'));
+      l4.appendChild(
+        el(
+          'div',
+          'db-sub',
+          isLocalDevOrigin()
+            ? 'No SQL trace attached (connect @dom-blame/server middleware).'
+            : 'External site — Layer 4 SQL tracing requires local/staging @dom-blame/server middleware.'
+        )
+      );
     }
     body.appendChild(l4);
 
@@ -702,7 +794,13 @@ export function createHud(options: {
     }
 
     if (report.endpoints.length === 0) {
-      nextChildren.push(el('div', 'db-layer', 'No JSON API responses captured on this page yet.'));
+      nextChildren.push(
+        el(
+          'div',
+          'db-layer',
+          'No JSON fetch/XHR captured yet. Enable Auto-inject in the extension popup and reload to capture initial page-load API calls.'
+        )
+      );
     }
 
     for (const ep of report.endpoints) {
@@ -779,6 +877,22 @@ export function createHud(options: {
     }
 
     const foot = el('div', 'db-footer');
+    const footActions = el('div', 'db-title');
+    const downloadPng = el('button', 'db-btn secondary', 'Download PNG');
+    downloadPng.type = 'button';
+    downloadPng.addEventListener('click', () => {
+      const dataUrl = renderAuditCardPng(report, latestCapsule);
+      if (!dataUrl) {
+        downloadPng.textContent = 'Canvas unavailable';
+        return;
+      }
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `dom-blame-audit-${Date.now()}.png`;
+      a.click();
+      downloadPng.textContent = 'Saved PNG';
+      setTimeout(() => { downloadPng.textContent = 'Download PNG'; }, 1400);
+    });
     const copyJson = el('button', 'db-btn active', 'Copy Audit JSON');
     copyJson.type = 'button';
     copyJson.addEventListener('click', async () => {
@@ -790,7 +904,8 @@ export function createHud(options: {
         copyJson.textContent = 'Clipboard blocked';
       }
     });
-    foot.append(el('span', 'db-sub mono', report.pageUrl), copyJson);
+    footActions.append(downloadPng, copyJson);
+    foot.append(el('span', 'db-sub mono', report.pageUrl), footActions);
     snapCard.append(head, body, foot);
     snapOverlay.classList.add('open');
   }

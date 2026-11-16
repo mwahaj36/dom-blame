@@ -103,11 +103,13 @@ function collectDomCorpus(rootEl: Element | null): DomCorpus {
         node = walker.nextSibling() ?? walker.nextNode();
         continue;
       }
-      const attrs = ['value', 'href', 'src', 'alt', 'title', 'aria-label', 'placeholder'];
+      const attrs = ['value', 'href', 'src', 'srcset', 'poster', 'data-src', 'alt', 'title', 'aria-label', 'placeholder'];
       for (let i = 0; i < attrs.length; i++) {
         const v = el.getAttribute(attrs[i]);
         if (v) chunks.push(v);
       }
+      const currentSrc = (el as { currentSrc?: unknown }).currentSrc;
+      if (typeof currentSrc === 'string' && currentSrc) chunks.push(currentSrc);
     } else if (node.nodeType === 3) {
       const parent = node.parentElement;
       if (parent && !parent.closest('[data-dom-blame-host]')) {
@@ -163,6 +165,20 @@ function isFieldRendered(field: FlattenedField, corpus: DomCorpus): boolean {
   if (!str) return false;
   if (corpus.exactTokens.has(str)) return true;
   if (str.length >= 3 && corpus.fullTextLower.includes(str)) return true;
+  // Match rendered media/link URLs even when CDN query strings or origins differ
+  if (str.startsWith('http://') || str.startsWith('https://')) {
+    const baseNoQuery = str.split('?')[0];
+    if (baseNoQuery.length >= 8 && corpus.fullTextLower.includes(baseNoQuery)) return true;
+    try {
+      const pathOnly = new URL(str).pathname.toLowerCase();
+      if (pathOnly.length >= 8 && pathOnly !== '/' && corpus.fullTextLower.includes(pathOnly)) return true;
+    } catch {
+      // Ignore malformed URLs
+    }
+  } else if (str.startsWith('/') && str.length >= 6) {
+    const pathNoQuery = str.split('?')[0];
+    if (pathNoQuery.length >= 6 && corpus.fullTextLower.includes(pathNoQuery)) return true;
+  }
   return false;
 }
 

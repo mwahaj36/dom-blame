@@ -17,7 +17,7 @@ const IGNORED_MISS_KEYS = new Set([
   'nodeName', 'tagName', 'ownerDocument', 'defaultView',
 ]);
 
-const NOISE_URL_RE = /(\/cdn-cgi\/challenge-platform|prebid|\/rtb\/bid|hb-mm-multi|\.lottie\.json(?:$|\?)|\/lottie\/|\/__l5e\/trackevents|\/ccm\/collect|\/sessions\/v2\/track|\/rmkt\/collect)/i;
+const NOISE_URL_RE = /(\/cdn-cgi\/challenge-platform|prebid|\/rtb\/bid|hb-mm-multi|\.lottie\.json(?:$|\?)|\/lottie\/|\/__l5e\/trackevents|\/ccm\/collect|\/sessions\/v2\/track|\/rmkt\/collect|\/sensorcollect|\/lix\/treatments|\/telemetry|\/analytics\/collect|\/log-?events?|sentry\.io|browser-intake-datadoghq|segment\.(?:io|com)\/v1|mixpanel\.com|amplitude\.com|posthog\.com\/e\/)/i;
 
 function isSameSiteUrl(rawUrl: string): boolean {
   try {
@@ -360,7 +360,7 @@ export function installNetworkMonitor(
             : undefined;
           let rawJson: unknown = null;
           let payloadBytes = 0;
-          if (ct.includes('json') || this.responseType === 'json') {
+          if (ct.toLowerCase().includes('json') || this.responseType === 'json') {
             try {
               if (this.responseType === 'json') {
                 rawJson = this.response;

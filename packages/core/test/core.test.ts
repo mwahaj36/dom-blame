@@ -299,3 +299,41 @@ test('auditor avoids substring false positives, prefers non-null samples, and su
 
   blame.destroy();
 });
+
+test('auditor skips telemetry/feature-flag noise and matches rendered media URLs across srcset/poster/query', async () => {
+  setupDom('https://www.linkedin.com/feed/foryou/');
+  (globalThis as Record<string, unknown>).fetch = async (input: RequestInfo | URL) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    if (url.includes('/sensorCollect/') || url.includes('/lix/treatmentsV2')) {
+      return new Response(JSON.stringify({ responseStatus: 200, testKeys: ['a', 'b'] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+    return new Response(
+      JSON.stringify({
+        pages: ['https://media.licdn.com/dms/image/v2/slide-1.jpg'],
+        coverUrl: '/dms/image/v2/cover-1.jpg?width=800',
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } }
+    );
+  };
+
+  const blame = initDomBlame({ showDock: false, enableKeyboard: false });
+
+  const img = document.createElement('img');
+  img.setAttribute('srcset', 'https://media.licdn.com/dms/image/v2/slide-1.jpg?e=1799 1x');
+  const video = document.createElement('video');
+  video.setAttribute('poster', 'https://cdn.example.com/dms/image/v2/cover-1.jpg');
+  document.body.append(img, video);
+
+  await fetch('https://www.linkedin.com/sensorCollect/', { method: 'POST' }).then((r) => r.json());
+  await fetch('https://www.linkedin.com/voyager/api/lix/treatmentsV2', { method: 'POST' }).then((r) => r.json());
+  await fetch('https://www.linkedin.com/dms/document/p1/v2/doc/feedshare-document-images_480').then((r) => r.json());
+
+  const report = blame.getOverfetchReport();
+  assert.equal(report.totalEndpoints, 1, 'Telemetry & feature-flag URLs must be filtered');
+  assert.equal(report.endpoints[0].overfetchRatio, 0, 'Rendered srcset/poster media URLs must count as rendered');
+
+  blame.destroy();
+});
