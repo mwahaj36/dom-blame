@@ -4,6 +4,11 @@
 
 # `dom-blame`
 
+[![npm version](https://img.shields.io/npm/v/dom-blame)](https://www.npmjs.com/package/dom-blame)
+[![@dom-blame/mcp](https://img.shields.io/npm/v/@dom-blame/mcp?label=%40dom-blame%2Fmcp)](https://www.npmjs.com/package/@dom-blame/mcp)
+[![license](https://img.shields.io/github/license/mwahaj36/dom-blame)](./LICENSE)
+[![release](https://img.shields.io/github/v/release/mwahaj36/dom-blame)](https://github.com/mwahaj36/dom-blame/releases/tag/v1.0.0)
+
 > **`git blame` for live pixels.**
 > `Alt + Click` any DOM element to trace its **React component prop $\leftarrow$ HTTP JSON field $\leftarrow$ SQL query**, catch silent `200 OK` schema drift, and expose unrendered JSON fields leaked in browser memory.
 
