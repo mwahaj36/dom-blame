@@ -1,7 +1,8 @@
 {
   "name": "dom-blame-monorepo",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "license": "MIT",
   "packageManager": "pnpm@12.21.0",
   "scripts": {
     "build": "corepack pnpm --filter dom-blame build && corepack pnpm --filter @dom-blame/server build && corepack pnpm --filter @dom-blame/mcp build && corepack pnpm --filter @dom-blame/extension build && corepack pnpm --filter @dom-blame/playground build",

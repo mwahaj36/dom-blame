@@ -1,7 +1,22 @@
 {
   "name": "dom-blame",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Zero-config full-stack runtime lineage inspector (DOM <- Component Prop <- HTTP JSON <- SQL) and payload overfetch auditor.",
+  "license": "MIT",
+  "author": "Muhammad Wahaj",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mwahaj36/dom-blame.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/mwahaj36/dom-blame#readme",
+  "bugs": {
+    "url": "https://github.com/mwahaj36/dom-blame/issues"
+  },
+  "keywords": ["react", "devtools", "debugging", "schema-drift", "overfetch", "sql", "mcp"],
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

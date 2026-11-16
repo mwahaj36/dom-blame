@@ -1,6 +1,6 @@
 {
   "name": "@dom-blame/extension",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Manifest V3 Chrome Extension wrapping dom-blame in world: MAIN.",
   "type": "module",

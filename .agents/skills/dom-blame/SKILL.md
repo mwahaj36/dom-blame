@@ -19,6 +19,12 @@ Use `dom-blame` to connect live browser pixels directly to component code, API J
 
 Keep instrumentation dev-only (`NODE_ENV !== 'production'`).
 
+### 1. Install Dev Packages
+
+```bash
+npm install -D dom-blame @dom-blame/server @dom-blame/mcp
+```
+
 ### Browser Client (`dom-blame`)
 
 Call `initDomBlame()` once in the client entry (before app renders so initial boot fetches are intercepted):
@@ -35,7 +41,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 ```
 
-> Or load the Chrome extension from `apps/extension/dist` with **Auto-inject on load** enabled if you cannot modify client code yet.
+> Or sideload the prebuilt MV3 extension from `apps/extension/dist` (or GitHub Releases `dom-blame-extension-v1.0.0.zip`) in `chrome://extensions` with **Auto-inject on load** enabled if you cannot modify client code yet.
 
 ### Backend Middleware & SQL Hooks (`@dom-blame/server`)
 
@@ -66,14 +72,14 @@ if (process.env.NODE_ENV !== 'production') {
 
 ### MCP Server (`@dom-blame/mcp`)
 
-Configure your coding agent's MCP config (Cursor, Claude Code, Antigravity) to run the built MCP server (`packages/mcp/dist/index.js` or binary `dom-blame-mcp`):
+Configure your coding agent's MCP config (Cursor, Claude Code, Antigravity) to run `@dom-blame/mcp`:
 
 ```json
 {
   "mcpServers": {
     "dom-blame": {
-      "command": "node",
-      "args": ["/path/to/dom-blame/packages/mcp/dist/index.js"]
+      "command": "npx",
+      "args": ["-y", "@dom-blame/mcp"]
     }
   }
 }

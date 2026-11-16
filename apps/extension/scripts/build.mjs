@@ -15,9 +15,17 @@ execSync(
   { cwd: rootDir, stdio: 'inherit' }
 );
 
-// Copy static MV3 assets
+// Copy static MV3 assets and icons
 for (const file of ['manifest.json', 'popup.html', 'popup.css']) {
   fs.copyFileSync(path.join(rootDir, 'public', file), path.join(distDir, file));
+}
+const iconsSrc = path.join(rootDir, 'public', 'icons');
+const iconsOut = path.join(distDir, 'icons');
+if (fs.existsSync(iconsSrc)) {
+  fs.mkdirSync(iconsOut, { recursive: true });
+  for (const file of fs.readdirSync(iconsSrc)) {
+    fs.copyFileSync(path.join(iconsSrc, file), path.join(iconsOut, file));
+  }
 }
 
 // Copy self-contained dom-blame IIFE bundle into extension dist

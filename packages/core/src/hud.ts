@@ -337,9 +337,28 @@ function renderAuditCardPng(report: OverfetchReport, latestCapsule: BlameCapsule
     ctx.lineWidth = 2;
     ctx.strokeRect(16, 16, canvas.width - 32, canvas.height - 32);
 
+    // Mini reticle brand mark matching assets/icon.svg
+    ctx.fillStyle = '#0f0f10';
+    ctx.fillRect(40, 38, 28, 28);
+    ctx.strokeStyle = '#2d2d31';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(40, 38, 28, 28);
+    ctx.strokeStyle = '#ededed';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(46, 48); ctx.lineTo(46, 44); ctx.lineTo(50, 44);
+    ctx.moveTo(58, 44); ctx.lineTo(62, 44); ctx.lineTo(62, 48);
+    ctx.moveTo(46, 56); ctx.lineTo(46, 60); ctx.lineTo(50, 60);
+    ctx.moveTo(58, 60); ctx.lineTo(62, 60); ctx.lineTo(62, 56);
+    ctx.stroke();
+    ctx.fillStyle = '#3b82f6';
+    ctx.beginPath();
+    ctx.arc(54, 52, 4, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.fillStyle = '#ededed';
     ctx.font = '600 22px system-ui, -apple-system, sans-serif';
-    ctx.fillText('dom-blame Audit Snapshot', 40, 62);
+    ctx.fillText('dom-blame Audit Snapshot', 78, 60);
 
     ctx.fillStyle = '#85858b';
     ctx.font = '14px ui-monospace, Menlo, Consolas, monospace';

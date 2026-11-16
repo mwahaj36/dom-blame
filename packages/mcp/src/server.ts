@@ -18,7 +18,7 @@ function clampOutput(text: string): string {
 export function createDomBlameMcpServer(bridge: BridgeHandle): McpServer {
   const server = new McpServer({
     name: 'dom-blame-mcp-server',
-    version: '0.1.0',
+    version: '1.0.0',
   });
 
   server.registerTool(

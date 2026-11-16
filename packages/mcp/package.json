@@ -1,7 +1,22 @@
 {
   "name": "@dom-blame/mcp",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Model Context Protocol (MCP) server exposing live dom-blame browser capsules, overfetch leaks, and SQL traces.",
+  "license": "MIT",
+  "author": "Muhammad Wahaj",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mwahaj36/dom-blame.git",
+    "directory": "packages/mcp"
+  },
+  "homepage": "https://github.com/mwahaj36/dom-blame#readme",
+  "bugs": {
+    "url": "https://github.com/mwahaj36/dom-blame/issues"
+  },
+  "keywords": ["dom-blame", "mcp", "model-context-protocol", "claude-code", "cursor", "devtools"],
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

@@ -1,7 +1,22 @@
 {
   "name": "@dom-blame/server",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Backend AsyncLocalStorage middleware and SQL query correlator for dom-blame.",
+  "license": "MIT",
+  "author": "Muhammad Wahaj",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mwahaj36/dom-blame.git",
+    "directory": "packages/server"
+  },
+  "homepage": "https://github.com/mwahaj36/dom-blame#readme",
+  "bugs": {
+    "url": "https://github.com/mwahaj36/dom-blame/issues"
+  },
+  "keywords": ["dom-blame", "express", "nextjs", "sqlite", "postgres", "prisma", "sql-tracing"],
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
