@@ -13,7 +13,7 @@ const UNIT_SUFFIXES = new Set([
   'timestamp', 'date', 'id', 'str', 'num', 'count', 'total', 'flag', 'val', 'value', 'raw',
 ]);
 
-const FALLBACK_TEXT_RE = /^(\$?0(\.0+)?|n\/a|na|none|null|undefined|unknown|free tier|—|-|\s*)$/i;
+const FALLBACK_TEXT_RE = /^(\$?0(\.0+)?|n\/a|na|none|null|undefined|unknown|free tier|—|-)$/i;
 
 export function flattenJson(value: unknown, prefix = '$', schemaPrefix = '$', out: FlattenedField[] = []): FlattenedField[] {
   if (value === null || value === undefined) {
@@ -255,9 +255,11 @@ export function resolveElementLineage(
     }
   }
 
-  const looksLikeFallback = FALLBACK_TEXT_RE.test(inspection.text);
-  // Include runtime Proxy property misses (especially critical when component reads `data.mrrCents` directly)
-  if (looksLikeFallback || lineageMatches.length === 0 || missingKeys.length > 0) {
+  const trimmedText = inspection.text.trim();
+  const isContainerShell = inspection.tagName === 'body' || inspection.tagName === 'html';
+  const looksLikeFallback = !isContainerShell && trimmedText.length > 0 && FALLBACK_TEXT_RE.test(trimmedText);
+  // Include runtime Proxy property misses only when element shows fallback text or has nullish component props
+  if (!isContainerShell && (looksLikeFallback || missingKeys.length > 0)) {
     for (let i = propertyMisses.length - 1; i >= 0; i--) {
       const miss = propertyMisses[i];
       if (!seenMissing.has(miss.missingKey)) {

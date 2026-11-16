@@ -210,6 +210,10 @@ test('fetch interceptor, Proxy read-tracking, schema drift, SQL correlation, and
   assert.equal(capsule.sqlQueries.length, 1);
   assert.ok(capsule.sqlQueries[0].sql.includes('SUM(mrr_cents)'));
 
+  // Clicking unrelated non-fallback container/static DOM must NOT falsely attach mrrCents schema drift
+  const bodyCapsule = await blame.inspectElement(document.body);
+  assert.equal(bodyCapsule.schemaDrifts.length, 0);
+
   // Inspect the rendered team member name -> exact 4-layer lineage
   const aliceNode = Array.from(document.querySelectorAll('span')).find((s) => s.textContent === 'Alice Chen')!;
   const aliceCapsule = await blame.inspectElement(aliceNode);
