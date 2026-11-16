@@ -8,62 +8,71 @@ import type {
   OverfetchReport,
 } from './types';
 
-const TOKEN_RULES: Array<{ tokens: Set<string>; reason: string }> = [
+const EXACT_OR_COMPOUND_RULES: Array<{ tokens?: Set<string>; re?: RegExp; reason: string }> = [
   {
-    tokens: new Set(['password', 'passwd', 'pwd', 'secret', 'token', 'apikey', 'auth']),
+    tokens: new Set(['password', 'passwd', 'pwd', 'secret', 'apikey', 'jwt']),
+    re: /(?:^|_)(password_hash|api_key|secret_key|private_key|access_token|refresh_token|auth_token|session_token|bearer_token|auth_providers|has_password|has_totp|temp_clone_token)(?:$|_)/i,
     reason: 'credential / auth secret',
   },
   {
-    tokens: new Set(['ssn', 'tax', 'ein']),
+    tokens: new Set(['ssn', 'ein']),
+    re: /(?:^|_)(social_security|tax_id|ssn_last4)(?:$|_)/i,
     reason: 'government / tax identifier',
   },
   {
-    tokens: new Set(['stripe', 'card', 'bank', 'billing', 'iban']),
+    tokens: new Set(['iban']),
+    re: /(?:^|_)(stripe_customer_id|stripe_subscription_id|card_last4|card_number|cvv|bank_account|routing_number|billing_address)(?:$|_)/i,
     reason: 'payment / billing identifier',
   },
   {
-    tokens: new Set(['salary', 'compensation', 'wage', 'income']),
+    tokens: new Set(['salary', 'compensation', 'wage']),
+    re: /(?:^|_)(salary_usd|annual_income)(?:$|_)/i,
     reason: 'compensation / payroll data',
   },
   {
-    tokens: new Set(['email', 'phone', 'mobile', 'address', 'ip']),
+    tokens: new Set(['email', 'phone', 'mobile']),
+    re: /(?:^|_)(personal_email|user_email|contact_email|support_email|work_email|email_from|phone_number|mobile_number|ip_address|client_ip|user_ip|home_address|street_address|shipping_address)(?:$|_)/i,
     reason: 'PII / contact field',
   },
   {
-    tokens: new Set(['admin', 'role', 'roles', 'permission', 'permissions', 'scope']),
+    tokens: new Set(['permissions']),
+    re: /(?:^|_)(is_admin|is_superuser|organization_permissions)(?:$|_)/i,
     reason: 'privilege / RBAC field',
   },
   {
-    tokens: new Set(['internal', 'private', 'notes']),
+    re: /(?:^|_)(internal_notes|admin_notes|private_notes|staff_notes)(?:$|_)/i,
     reason: 'internal-only metadata',
   },
 ];
 
-const COMPOUND_PATTERNS: Array<{ re: RegExp; reason: string }> = [
-  { re: /(?:^|_)(api_key|auth_providers|has_password|has_totp|publishable_key)(?:$|_)/i, reason: 'credential / auth secret' },
-  { re: /(?:^|_)(social_security|tax_id|ssn_last4)(?:$|_)/i, reason: 'government / tax identifier' },
-  { re: /(?:^|_)(ip_address)(?:$|_)/i, reason: 'PII / contact field' },
-  { re: /(?:^|_)(is_admin|admin_notes)(?:$|_)/i, reason: 'privilege / RBAC field' },
-];
+const HARMLESS_SUFFIX_RE = /(?:_TEXT|_TITLE|_LABEL|_DESCRIPTION|_REQUIRED|_PLACEHOLDER|Description|_URL|_NAME|_ENABLED|_VERIFIED|_SENT_AT)$/i;
 
 export function classifySensitivity(key: string): { sensitive: boolean; reason: string | null } {
-  // Ignore CSS custom properties (e.g. --card-anim-transition-duration) and UI copy/translation keys
+  // Ignore CSS custom properties, UI copy/translation keys, and URL/boolean metadata
   if (key.startsWith('--')) return { sensitive: false, reason: null };
-  if (/(?:_TEXT|_TITLE|_LABEL|_DESCRIPTION|_REQUIRED|_PLACEHOLDER|Description)$/i.test(key)) {
-    return { sensitive: false, reason: null };
-  }
-  const snake = tokenizeKey(key).join('_');
-  for (let i = 0; i < COMPOUND_PATTERNS.length; i++) {
-    if (COMPOUND_PATTERNS[i].re.test(snake)) {
-      return { sensitive: true, reason: COMPOUND_PATTERNS[i].reason };
-    }
-  }
+  if (HARMLESS_SUFFIX_RE.test(key)) return { sensitive: false, reason: null };
+
   const tokens = tokenizeKey(key);
-  for (let i = 0; i < TOKEN_RULES.length; i++) {
-    const rule = TOKEN_RULES[i];
-    for (let j = 0; j < tokens.length; j++) {
-      if (rule.tokens.has(tokens[j])) {
-        return { sensitive: true, reason: rule.reason };
+  const snake = tokens.join('_');
+  if (HARMLESS_SUFFIX_RE.test(snake)) return { sensitive: false, reason: null };
+
+  // Avoid flagging generic multi-token metadata like email_from_name, email_banner_url, phone_verified
+  const isSingleEmailOrPhone = snake === 'email' || snake === 'phone' || snake === 'mobile';
+
+  for (let i = 0; i < EXACT_OR_COMPOUND_RULES.length; i++) {
+    const rule = EXACT_OR_COMPOUND_RULES[i];
+    if (rule.re && rule.re.test(snake)) {
+      return { sensitive: true, reason: rule.reason };
+    }
+    if (rule.tokens) {
+      for (let j = 0; j < tokens.length; j++) {
+        const tok = tokens[j];
+        if ((tok === 'email' || tok === 'phone' || tok === 'mobile') && !isSingleEmailOrPhone) {
+          continue;
+        }
+        if (rule.tokens.has(tok)) {
+          return { sensitive: true, reason: rule.reason };
+        }
       }
     }
   }

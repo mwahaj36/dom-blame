@@ -242,9 +242,19 @@ test('auditor avoids substring false positives, prefers non-null samples, and su
   assert.equal(classifySensitivity('ingressName').sensitive, false);
   assert.equal(classifySensitivity('--card-anim-transition-duration').sensitive, false);
   assert.equal(classifySensitivity('WEB_DSR_FORM_EMAIL_ADDRESS_TEXT').sensitive, false);
+  assert.equal(classifySensitivity('stripe_user_id').sensitive, false);
+  assert.equal(classifySensitivity('stripe_publishable_key').sensitive, false);
+  assert.equal(classifySensitivity('email_from_name').sensitive, false);
+  assert.equal(classifySensitivity('email_banner_url').sensitive, false);
+  assert.equal(classifySensitivity('diamondAddress').sensitive, false);
+  assert.equal(classifySensitivity('role').sensitive, false);
+
   assert.equal(classifySensitivity('user_ssn').sensitive, true);
-  assert.equal(classifySensitivity('stripe_user_id').sensitive, true);
-  assert.equal(classifySensitivity('email_from_name').sensitive, true);
+  assert.equal(classifySensitivity('stripe_customer_id').sensitive, true);
+  assert.equal(classifySensitivity('personal_email').sensitive, true);
+  assert.equal(classifySensitivity('password_hash').sensitive, true);
+  assert.equal(classifySensitivity('is_admin').sensitive, true);
+  assert.equal(classifySensitivity('internal_notes').sensitive, true);
 
   setupDom('https://example.com/explore');
   const requestedUrls: string[] = [];
@@ -254,8 +264,8 @@ test('auditor avoids substring false positives, prefers non-null samples, and su
     return new Response(
       JSON.stringify({
         items: [
-          { title: 'Visible Post', stripe_user_id: null },
-          { title: 'Second Post', stripe_user_id: 'acct_123456' },
+          { title: 'Visible Post', stripe_customer_id: null },
+          { title: 'Second Post', stripe_customer_id: 'cus_123456' },
         ],
       }),
       { status: 200, headers: { 'content-type': 'application/json' } }
@@ -278,9 +288,9 @@ test('auditor avoids substring false positives, prefers non-null samples, and su
   const report = blame.getOverfetchReport();
   const ep = report.endpoints[0];
   assert.ok(ep.payloadBytes > 0);
-  const stripeFinding = ep.unrenderedList.find((f) => f.key === 'stripe_user_id');
+  const stripeFinding = ep.unrenderedList.find((f) => f.key === 'stripe_customer_id');
   assert.ok(stripeFinding?.sensitive);
-  assert.equal(stripeFinding?.sampleValue, 'acct_123456');
+  assert.equal(stripeFinding?.sampleValue, 'cus_123456');
   assert.equal(ep.nonNullSensitiveCount, 1);
 
   blame.destroy();
