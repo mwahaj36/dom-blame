@@ -240,6 +240,8 @@ test('fetch interceptor, Proxy read-tracking, schema drift, SQL correlation, and
 
 test('auditor avoids substring false positives, prefers non-null samples, and suppresses bridge calls on non-local hosts', async () => {
   assert.equal(classifySensitivity('ingressName').sensitive, false);
+  assert.equal(classifySensitivity('--card-anim-transition-duration').sensitive, false);
+  assert.equal(classifySensitivity('WEB_DSR_FORM_EMAIL_ADDRESS_TEXT').sensitive, false);
   assert.equal(classifySensitivity('user_ssn').sensitive, true);
   assert.equal(classifySensitivity('stripe_user_id').sensitive, true);
   assert.equal(classifySensitivity('email_from_name').sensitive, true);

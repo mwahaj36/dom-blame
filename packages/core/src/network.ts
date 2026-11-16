@@ -17,7 +17,7 @@ const IGNORED_MISS_KEYS = new Set([
   'nodeName', 'tagName', 'ownerDocument', 'defaultView',
 ]);
 
-const NOISE_URL_RE = /(\/cdn-cgi\/challenge-platform|prebid|\/rtb\/bid|hb-mm-multi|\.lottie\.json(?:$|\?)|\/lottie\/)/i;
+const NOISE_URL_RE = /(\/cdn-cgi\/challenge-platform|prebid|\/rtb\/bid|hb-mm-multi|\.lottie\.json(?:$|\?)|\/lottie\/|\/__l5e\/trackevents|\/ccm\/collect|\/sessions\/v2\/track|\/rmkt\/collect)/i;
 
 function isSameSiteUrl(rawUrl: string): boolean {
   try {
@@ -128,6 +128,8 @@ export function detectRequestStorms(records: NetworkRecord[], windowMs = 2000): 
   const buckets = new Map<string, NetworkRecord[]>();
   for (let i = 0; i < records.length; i++) {
     const r = records[i];
+    // Only flag JSON/API endpoints, ignoring HTML/RSC link prefetches
+    if (r.fields.length === 0 && r.rawJson === null) continue;
     const key = `${r.method} ${r.normalizedEndpoint}`;
     const list = buckets.get(key);
     if (list) list.push(r);

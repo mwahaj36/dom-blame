@@ -47,6 +47,11 @@ const COMPOUND_PATTERNS: Array<{ re: RegExp; reason: string }> = [
 ];
 
 export function classifySensitivity(key: string): { sensitive: boolean; reason: string | null } {
+  // Ignore CSS custom properties (e.g. --card-anim-transition-duration) and UI copy/translation keys
+  if (key.startsWith('--')) return { sensitive: false, reason: null };
+  if (/(?:_TEXT|_TITLE|_LABEL|_DESCRIPTION|_REQUIRED|_PLACEHOLDER|Description)$/i.test(key)) {
+    return { sensitive: false, reason: null };
+  }
   const snake = tokenizeKey(key).join('_');
   for (let i = 0; i < COMPOUND_PATTERNS.length; i++) {
     if (COMPOUND_PATTERNS[i].re.test(snake)) {
