@@ -1,76 +1,63 @@
-# `dom-blame` (`npx dom-blame`) — Product Specification & Market Analysis
+# `dom-blame` — Product Specification & Architecture
 
 > **`git blame` tells you which commit wrote a line of code.**
-> **`dom-blame` tells you which Component, HTTP JSON field, and SQL query rendered a live pixel on screen—and what hidden data leaked along the way.**
+> **`dom-blame` tells you which Component, HTTP JSON field, and SQL query rendered a live DOM element—and which network fields were fetched but never rendered.**
 
 ---
 
-## 1. The Core Problem We Are Solving
+## 1. Problem Statement
 
-In the era of AI-assisted coding (Claude Code, Cursor, Lovable, Bolt, Windsurf), the engineering bottleneck has shifted from *writing code* to **diagnosing silent runtime bugs and hidden architectural slop**.
+Modern full-stack applications suffer from three categories of runtime defects that traditional error trackers and static linters cannot catch because **no exception is thrown (`200 OK`, `0` console errors)**:
 
-When a UI element renders the wrong value—or when a vibe-coded application ships to production—developers and founders hit three invisible walls:
+1. **Silent Schema & Lineage Drift:**
+   * A UI element displays a fallback value (`$0.00`, `N/A`, or `"Free Tier"`) even though the database and API returned valid data.
+   * Typical cause: naming or structural drift across layers (e.g., Postgres returns `sub_status`, the API serializes `subscription_tier`, and the React component reads `user.subscriptionStatus`).
+   * Because the HTTP status is `200 OK` and `undefined` renders silently in JSX, error monitors never trigger.
 
-1. **The "200 OK" Silent Bug (Schema & Lineage Drift):**
-   * The browser console has `0` errors. The network tab says `200 OK`. Yet a dashboard card displays `$0.00` instead of `$1,450.00`, or `"Free Tier"` instead of `"Pro"`.
-   * Why? Because the database column is `sub_status`, the API returned `subscription_tier`, and the React component checked `user.subscriptionStatus`.
-   * Existing AI tools (BrowserTools MCP, Sentry) are blind to this because **no error was thrown**.
+2. **Payload Overfetching & Unrendered Field Exposure:**
+   * Backend routes routinely return full ORM entities (`SELECT *` or `findMany()`) while the UI component only consumes 2–3 properties.
+   * Sensitive or internal fields (`email`, `stripe_customer_id`, `role`, `internal_notes`, feature flags) are serialized over the wire into browser memory despite never being rendered in the DOM.
 
-2. **Silent Payload Overfetching & Data Leaks (`LeakPeek` Engine):**
-   * AI coding agents routinely write `SELECT * FROM users` or `prisma.user.findMany()` in backend routes and return the entire database object to the frontend, where the React component only renders `user.name` and `user.avatar`.
-   * Meanwhile, `email`, `stripe_customer_id`, `role`, `internal_notes`, and feature flags sit silently inside the browser's network memory—visible to anyone who opens DevTools.
-
-3. **Request Storms & N+1 Cascades:**
-   * A single user click triggers 14 duplicate `fetch()` calls or 30 sequential SQL queries due to unoptimized `useEffect` hooks and missing query batching.
+3. **Interaction-Triggered Request Storms (N+1 Cascades):**
+   * A single user interaction or component mount triggers redundant `fetch`/`XHR` calls or sequential SQL queries due to unbatched effects or cache key mismatches.
 
 ---
 
-## 2. What `dom-blame` Does
+## 2. Solution Overview
 
-`dom-blame` is a zero-config, full-stack runtime lineage and payload auditing tool with a craft-grade in-browser HUD (`Alt + Hover` / `Alt + Click`).
+`dom-blame` is a zero-config runtime lineage inspector and payload auditor. Holding `Alt` and clicking any element in the browser traces the exact data lineage of that element from the pixel on screen back to the database query.
 
-It operates in **Two Modes**:
+### Core Capabilities
 
-### Mode 1: Local Full-Stack Dev Mode (`npx dom-blame`)
-For developers and AI coding agents (via MCP) running locally:
-* **Pixel-to-SQL Blame Chain:** Hold `Alt` and click any DOM element (`<Badge>$0.00</Badge>`). `dom-blame` traces the exact causal chain backwards:
-  * **DOM Layer:** Text node `"$0.00"` inside `<RevenueCard />` (`src/components/RevenueCard.tsx:42`)
-  * **React State/Prop Layer:** Prop `data.totalRevenue` evaluated to `undefined` (fell back to `"$0.00"`)
-  * **Network JSON Layer:** `GET /api/metrics` (`200 OK`, `18ms`) returned `{ "total_revenue_cents": 145000 }` -> **🚨 Flagged: Key Mismatch (`totalRevenue` vs `total_revenue_cents`)**
-  * **Database / SQL Layer:** Correlated via `x-dom-blame-id` header to `SELECT SUM(amount_cents) AS total_revenue_cents FROM invoices WHERE org_id = $1` (`2.4ms`, 1 row).
-* **1-Click "Send Blame Capsule to AI" (MCP Server):** Exports the deterministic full-stack trace directly into Claude Code or Cursor so the agent fixes the exact mismatch in one turn without guessing.
+#### 1. Full-Stack Data Lineage (`Pixel ← Prop ← JSON ← SQL`)
+When inspecting a DOM node (`Alt + Click`), `dom-blame` resolves:
+* **DOM & Component Layer:** Extracts the owning component hierarchy, source file path, line number, and live props/state via framework internals (`__reactFiber$`).
+* **Network JSON Layer:** Matches the rendered value (or `undefined` prop) against captured `fetch`/`XHR` JSON payloads. If a prop evaluated to `undefined`, fuzzy key matching identifies candidate fields in the JSON response (e.g., flagging `totalRevenue` vs `total_revenue_cents`).
+* **Database / SQL Layer:** Correlates the HTTP request via an injected `x-dom-blame-id` header with backend middleware to display the exact SQL statements, row counts, and execution times that produced the payload.
 
-### Mode 2: Live Site Audit / Chrome Extension Mode ("The Client Magnet")
-Works on **any live production website** without backend installation:
-* **Unrendered JSON Leak Detector (`LeakPeek`):** Compares every JSON field received over `fetch`/`XHR` against the actual text and attributes rendered in the live DOM.
-  * Highlights UI cards with a badge: **`2 fields rendered | 🚨 14 unrendered fields exposed in network payload (stripe_id, email, is_admin...)`**
-* **Click-to-Waterfall Blame:** Click any button on a live site and see every redundant API call, payload size bloat, and React re-render burst triggered by that interaction.
-* **1-Click "Audit Card" Export:** Generates a sleek, Apple/Linear-grade visual diagnostic card ready to share in a 15-second GIF or founder audit report.
+#### 2. Payload Overfetch & Exposure Auditing
+* Compares all JSON properties received across `fetch`/`XHR` responses against values actually read by components or rendered into the DOM.
+* Reports the **Overfetch Ratio** per endpoint and flags unrendered fields sitting in client memory.
+
+#### 3. MCP Integration for Coding Agents
+* Exposes structured runtime blame capsules over the Model Context Protocol (MCP), allowing local coding agents to read the exact `DOM -> Prop -> JSON -> SQL` mismatch directly rather than guessing from static source files.
 
 ---
 
-## 3. Competitive Landscape & Market Analysis
+## 3. Ecosystem Comparison
 
-| Competitor | What They Do Well | Where They Stop (Our Wedge) |
+| Tool | Primary Focus | Architectural Limitation |
 | :--- | :--- | :--- |
-| **React Grab** (`npx grab`) | Fast `Cmd+C` on a DOM element to grab the React component file path (`Card.tsx:42`). | **100% blind to Network & Backend.** If the bug is in the API JSON key or SQL query, React Grab points the AI at the wrong layer (the React component). |
-| **Stagewise** | Browser toolbar to select DOM elements and prompt an IDE agent for CSS/UI tweaks. | Built for visual styling/layout tweaks, not data lineage, API overfetching, or backend SQL debugging. |
-| **react-data-xray (RDX)** | Dev-only React library that maps a screen value to its `fetch` JSON path. | Clunky name, stops at the frontend `fetch` boundary (no SQL/Backend bridge, no MCP server, no unrendered PII/overfetch leak detector, no live-site extension mode for auditing external apps). |
-| **BrowserTools MCP** | Streams Chrome console errors and raw network logs to Cursor/Claude. | **Only useful when an exception (`500` or `console.error`) occurs.** Completely useless on silent `"200 OK"` bugs where the wrong value rendered or hidden fields leaked. |
-| **Sentry Spotlight** | Local OpenTelemetry sidecar for traces and logs. | Heavy SDK configuration required across stack; trace-list UI instead of point-and-click pixel blame; cannot audit external production sites. |
-
-### Why `dom-blame` Wins
-1. **Instant Mental Model:** Everyone knows `git blame`. "`dom-blame` is `git blame` for live pixels" requires zero explanation on Hacker News, Reddit, or X.
-2. **Traces Values & Leaks, Not Just Errors:** Catches silent schema drift (`camelCase` vs `snake_case`) and overfetched/leaked JSON fields even when every HTTP status is `200 OK`.
-3. **Dual Engine (DevTool + Outbound Client Engine):** Serves open-source developers locally via `npx dom-blame` + MCP, while serving solo consultants/agencies externally via the Live Audit Extension.
+| **React Grab** (`npx grab`) | Copies React component file path (`Card.tsx:42`) from a clicked DOM element. | **Frontend-only.** Stops at the component file; cannot see whether an incorrect value came from an API key mismatch or a bad SQL query. |
+| **Stagewise** | Browser toolbar for selecting DOM elements to prompt UI/CSS edits. | Designed for layout and styling adjustments rather than runtime data lineage or payload auditing. |
+| **react-data-xray (RDX)** | Maps rendered text in React to `fetch` JSON paths. | Stops at the client network boundary (no backend/SQL correlation, no schema-drift fuzzy matching on `undefined` props, no MCP server, and requires bundler installation). |
+| **BrowserTools MCP** | Streams Chrome console logs and raw network tabs to an IDE agent. | **Exception-driven.** Does not trace silent `200 OK` data mismatches or correlate specific DOM nodes to specific JSON fields and SQL queries. |
+| **Sentry Spotlight** | Local OpenTelemetry sidecar for development traces and logs. | Requires multi-layer OpenTelemetry SDK instrumentation and presents a chronological trace table rather than direct DOM element inspection. |
 
 ---
 
-## 4. Design & Engineering Principles (Powered by Installed Skills)
+## 4. Technical & Design Principles
 
-Even though `dom-blame` is a developer tool, **visual craft is our #1 distribution moat**. A developer tool goes viral on X and Reddit when the 15-second screen recording looks like an Apple/Linear product rather than a clunky 1998 DevTools tab.
-
-* **`ponytail` Philosophy (Code Minimalism):**
-  * The core injected script must be zero-dependency, vanilla TypeScript/JS, under `<15KB` gzipped, using native Web APIs (`ShadowRoot`, `Proxy`, `PerformanceObserver`, React internal `__reactFiber$`).
-* **`apple-design` + `impeccable` + `unslop` Philosophy (Visual Craft):**
-  * The floating HUD overlay, targeting reticle, and exported "Audit Cards" must use crisp spring physics, translucent glassmorphism (`backdrop-filter: blur(16px)`), tabular monospace numbers (`font-variant-numeric: tabular-nums`), subtle 1px borders, and high-contrast semantic badges—zero generic AI purple gradients or visual clutter.
+* **Zero-Dependency Runtime:** The browser inspector and network interceptor are written in vanilla TypeScript using native Web APIs (`ShadowRoot`, `Proxy`, `WeakMap`, `PerformanceObserver`) with zero runtime dependencies and `<15KB` gzipped footprint.
+* **Strict Style Isolation:** The in-browser inspector renders inside a closed/isolated `ShadowRoot` so host application styles never bleed into the inspector, and inspector styles never affect page layout.
+* **High-Precision UI:** Built for fast developer ergonomics—keyboard-first navigation, crisp `1px` structural borders, tabular monospace metrics (`font-variant-numeric: tabular-nums`), and clear visual hierarchy across the 4-layer stack trace.
