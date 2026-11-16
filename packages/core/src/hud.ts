@@ -280,7 +280,7 @@ const HUD_CSS = `
   justify-content: center;
   padding: 24px;
 }
-.db-snap-overlay.open { display: flex; }
+.db-snap-overlay.open { display: flex; pointer-events: auto; }
 .db-snap-card {
   width: 560px;
   max-width: 100%;
@@ -376,10 +376,28 @@ export function createHud(options: {
   const drawer = el('div', 'db-drawer');
   drawer.setAttribute('role', 'dialog');
   drawer.setAttribute('aria-label', 'Payload Overfetch Audit');
+  const drawerHead = el('div', 'db-header');
+  drawerHead.appendChild(el('div', 'db-title', 'Payload Overfetch Audit'));
+  const drawerActions = el('div', 'db-title');
+  const drawerSnapBtn = el('button', 'db-btn secondary', 'Snap Audit Card');
+  drawerSnapBtn.type = 'button';
+  drawerSnapBtn.addEventListener('click', () =>
+    openSnapCard(options.onGetOverfetchReport(), options.onGetLatestCapsule() ?? lastCapsule)
+  );
+  const drawerCloseBtn = el('button', 'db-btn', 'Esc');
+  drawerCloseBtn.type = 'button';
+  drawerCloseBtn.addEventListener('click', () => drawer.classList.remove('open'));
+  drawerActions.append(drawerSnapBtn, drawerCloseBtn);
+  drawerHead.appendChild(drawerActions);
+  const drawerBody = el('div', 'db-body');
+  drawer.append(drawerHead, drawerBody);
 
   const snapOverlay = el('div', 'db-snap-overlay');
   const snapCard = el('div', 'db-snap-card');
   snapOverlay.appendChild(snapCard);
+  snapOverlay.addEventListener('click', (e) => {
+    if (e.target === snapOverlay) snapOverlay.classList.remove('open');
+  });
 
   shadow.append(reticle, pill, dock, popover, drawer, snapOverlay);
   const mountHost = () => {
@@ -657,20 +675,8 @@ export function createHud(options: {
   }
 
   function renderDrawer(report: OverfetchReport) {
-    drawer.replaceChildren();
-    const head = el('div', 'db-header');
-    head.appendChild(el('div', 'db-title', 'Payload Overfetch Audit'));
-    const headerActions = el('div', 'db-title');
-    const snapBtn = el('button', 'db-btn secondary', 'Snap Audit Card');
-    snapBtn.type = 'button';
-    snapBtn.addEventListener('click', () => openSnapCard(report, options.onGetLatestCapsule() ?? lastCapsule));
-    const closeBtn = el('button', 'db-btn', 'Esc');
-    closeBtn.type = 'button';
-    closeBtn.addEventListener('click', () => drawer.classList.remove('open'));
-    headerActions.append(snapBtn, closeBtn);
-    head.appendChild(headerActions);
-
-    const body = el('div', 'db-body');
+    const prevScroll = drawerBody.scrollTop;
+    const nextChildren: HTMLElement[] = [];
     const stats = el('div', 'db-stats');
     const mkStat = (label: string, val: string) => {
       const card = el('div', 'db-stat');
@@ -682,7 +688,7 @@ export function createHud(options: {
       mkStat('Wire / DOM', `${report.totalSchemaFields} / ${report.renderedSchemaFields}`),
       mkStat('Sensitive', `${report.sensitiveFindingsCount}`)
     );
-    body.appendChild(stats);
+    nextChildren.push(stats);
 
     if (report.requestStorms.length > 0) {
       const stormBox = el('div', 'db-layer alert');
@@ -692,11 +698,11 @@ export function createHud(options: {
           el('div', 'db-sub mono', `${s.endpoint} fired ${s.count}x in ${s.windowMs}ms (${s.totalDurationMs}ms total)`)
         );
       }
-      body.appendChild(stormBox);
+      nextChildren.push(stormBox);
     }
 
     if (report.endpoints.length === 0) {
-      body.appendChild(el('div', 'db-layer', 'No JSON API responses captured on this page yet.'));
+      nextChildren.push(el('div', 'db-layer', 'No JSON API responses captured on this page yet.'));
     }
 
     for (const ep of report.endpoints) {
@@ -724,10 +730,11 @@ export function createHud(options: {
         }
         card.appendChild(chips);
       }
-      body.appendChild(card);
+      nextChildren.push(card);
     }
 
-    drawer.append(head, body);
+    drawerBody.replaceChildren(...nextChildren);
+    drawerBody.scrollTop = prevScroll;
   }
 
   function openSnapCard(report: OverfetchReport, latestCapsule: BlameCapsule | null) {
