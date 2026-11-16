@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>dom-blame</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="header">
+        <div class="brand">
+          <span id="status-dot" class="dot"></span>
+          <span class="title">dom-blame</span>
+        </div>
+        <span class="version mono">v0.1</span>
+      </header>
+
+      <section class="controls">
+        <button id="btn-inject" class="btn primary" type="button">
+          Inject &amp; Inspect Tab
+        </button>
+        <label class="toggle-row">
+          <span>Auto-inject at document_start</span>
+          <input id="chk-auto" type="checkbox" />
+        </label>
+      </section>
+
+      <section class="metrics">
+        <div class="stat">
+          <span class="stat-label">Endpoints</span>
+          <span id="m-endpoints" class="stat-val mono">0</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Overfetch</span>
+          <span id="m-overfetch" class="stat-val mono">0%</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Leaks</span>
+          <span id="m-leaks" class="stat-val mono">0</span>
+        </div>
+      </section>
+
+      <section id="snap-preview" class="snap-box hidden">
+        <div class="snap-head">
+          <span>Audit Snapshot</span>
+          <button id="btn-copy-snap" class="btn-inline" type="button">Copy JSON</button>
+        </div>
+        <pre id="snap-body" class="snap-pre mono"></pre>
+      </section>
+
+      <footer class="actions">
+        <button id="btn-drawer" class="btn secondary" type="button">Overfetch Drawer</button>
+        <button id="btn-snap" class="btn secondary" type="button">Snap Audit Card</button>
+      </footer>
+      <p id="hint" class="hint">Hold <kbd class="mono">Alt</kbd> + click any element on the page.</p>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

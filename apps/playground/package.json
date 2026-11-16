@@ -1,0 +1,35 @@
+{
+  "name": "@dom-blame/playground",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Full-stack React 19 + Express + SQLite verification app for dom-blame.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch server/index.ts",
+    "build": "vite build && tsup server/index.ts --format esm --out-dir dist/server --external better-sqlite3",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@dom-blame/server": "workspace:*",
+    "better-sqlite3": "^13.2.0",
+    "dom-blame": "workspace:*",
+    "express": "^5.1.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.1",
+    "@types/jsdom": "^21.1.7",
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^26.1.0",
+    "tsup": "^8.5.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3",
+    "vite": "^6.2.0"
+  }
+}

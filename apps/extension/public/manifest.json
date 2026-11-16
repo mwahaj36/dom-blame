@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "dom-blame",
+  "version": "0.1.0",
+  "description": "Alt+Click any live DOM element to trace its React component prop, HTTP JSON field, and unrendered payload leaks.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "dom-blame Runtime Inspector"
+  }
+}
