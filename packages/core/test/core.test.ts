@@ -5,6 +5,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   auditPageOverfetch,
+  classifySensitivity,
   initDomBlame,
   inspectElementNode,
   levenshtein,
@@ -231,7 +232,54 @@ test('fetch interceptor, Proxy read-tracking, schema drift, SQL correlation, and
   // Also ensure direct auditPageOverfetch works
   const directReport = auditPageOverfetch(blame.getNetworkRecords(), new Set());
   assert.equal(directReport.totalEndpoints, report.totalEndpoints);
+  assert.ok(directReport.totalPayloadBytes > 0);
 
   root.unmount();
+  blame.destroy();
+});
+
+test('auditor avoids substring false positives, prefers non-null samples, and suppresses bridge calls on non-local hosts', async () => {
+  assert.equal(classifySensitivity('ingressName').sensitive, false);
+  assert.equal(classifySensitivity('user_ssn').sensitive, true);
+  assert.equal(classifySensitivity('stripe_user_id').sensitive, true);
+  assert.equal(classifySensitivity('email_from_name').sensitive, true);
+
+  setupDom('https://example.com/explore');
+  const requestedUrls: string[] = [];
+  (globalThis as Record<string, unknown>).fetch = async (input: RequestInfo | URL) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    requestedUrls.push(url);
+    return new Response(
+      JSON.stringify({
+        items: [
+          { title: 'Visible Post', stripe_user_id: null },
+          { title: 'Second Post', stripe_user_id: 'acct_123456' },
+        ],
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } }
+    );
+  };
+
+  const blame = initDomBlame({ showDock: false, enableKeyboard: false });
+  await fetch('https://example.com/api/explore').then((r) => r.json());
+  await new Promise((r) => setTimeout(r, 300));
+
+  const targetEl = document.createElement('div');
+  targetEl.textContent = 'Visible Post';
+  document.body.appendChild(targetEl);
+  await blame.inspectElement(targetEl);
+
+  // Must not auto-ping 127.0.0.1:4119 or /__dom_blame/trace on external HTTPS origins
+  assert.equal(requestedUrls.some((u) => u.includes('127.0.0.1:4119')), false);
+  assert.equal(requestedUrls.some((u) => u.includes('/__dom_blame/trace')), false);
+
+  const report = blame.getOverfetchReport();
+  const ep = report.endpoints[0];
+  assert.ok(ep.payloadBytes > 0);
+  const stripeFinding = ep.unrenderedList.find((f) => f.key === 'stripe_user_id');
+  assert.ok(stripeFinding?.sensitive);
+  assert.equal(stripeFinding?.sampleValue, 'acct_123456');
+  assert.equal(ep.nonNullSensitiveCount, 1);
+
   blame.destroy();
 });

@@ -526,7 +526,11 @@ export function createHud(options: {
     // Layer 2: Component & Schema Drift
     const l2 = el('div', capsule.schemaDrifts.length > 0 ? 'db-layer alert' : 'db-layer');
     const l2h = el('div', 'db-layer-head');
-    const loc = comp?.fileName ? `${comp.fileName}${comp.lineNumber ? `:${comp.lineNumber}` : ''}` : 'DOM fallback';
+    const loc = comp?.fileName
+      ? `${comp.fileName}${comp.lineNumber ? `:${comp.lineNumber}` : ''}`
+      : comp
+        ? 'React Fiber'
+        : 'DOM fallback';
     l2h.append(el('span', 'db-layer-name', '2. Component'), el('span', 'mono', loc));
     l2.appendChild(l2h);
 
@@ -687,9 +691,10 @@ export function createHud(options: {
     for (const ep of report.endpoints) {
       const card = el('div', ep.sensitiveCount > 0 ? 'db-layer alert' : 'db-layer');
       const cardHead = el('div', 'db-layer-head');
+      const kb = ep.payloadBytes > 0 ? ` · ${(ep.payloadBytes / 1024).toFixed(1)}KB` : '';
       cardHead.append(
         el('span', 'db-kv mono', `${ep.method} ${ep.endpoint}`),
-        el('span', 'mono', `${ep.renderedFields}/${ep.totalSchemaFields} rendered · ${ep.avgDurationMs}ms`)
+        el('span', 'mono', `${ep.renderedFields}/${ep.totalSchemaFields} rendered${kb} · ${ep.avgDurationMs}ms`)
       );
       card.appendChild(cardHead);
 

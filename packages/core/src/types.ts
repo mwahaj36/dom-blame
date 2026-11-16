@@ -22,6 +22,8 @@ export interface NetworkRecord {
   status: number;
   durationMs: number;
   timestamp: number;
+  payloadBytes: number;
+  isThirdParty: boolean;
   fields: FlattenedField[];
   sqlQueries: SqlQueryTrace[];
   rawJson: unknown;
@@ -108,11 +110,13 @@ export interface EndpointAudit {
   status: number;
   requestCount: number;
   avgDurationMs: number;
+  payloadBytes: number;
   totalSchemaFields: number;
   renderedFields: number;
   unrenderedFields: number;
   overfetchRatio: number;
   sensitiveCount: number;
+  nonNullSensitiveCount: number;
   nPlusOneSuspected: boolean;
   unrenderedList: OverfetchField[];
   sqlQueryCount: number;
@@ -122,6 +126,7 @@ export interface OverfetchReport {
   pageUrl: string;
   capturedAt: number;
   totalEndpoints: number;
+  totalPayloadBytes: number;
   totalSchemaFields: number;
   renderedSchemaFields: number;
   unrenderedSchemaFields: number;

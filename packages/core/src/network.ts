@@ -17,6 +17,34 @@ const IGNORED_MISS_KEYS = new Set([
   'nodeName', 'tagName', 'ownerDocument', 'defaultView',
 ]);
 
+const NOISE_URL_RE = /(\/cdn-cgi\/challenge-platform|prebid|\/rtb\/bid|hb-mm-multi|\.lottie\.json(?:$|\?)|\/lottie\/)/i;
+
+function isSameSiteUrl(rawUrl: string): boolean {
+  try {
+    if (typeof window === 'undefined') return true;
+    const targetHost = new URL(rawUrl, window.location.href).hostname.toLowerCase();
+    const pageHost = window.location.hostname.toLowerCase();
+    if (targetHost === pageHost) return true;
+    const tParts = targetHost.split('.');
+    const pParts = pageHost.split('.');
+    if (tParts.length >= 2 && pParts.length >= 2) {
+      return tParts.slice(-2).join('.') === pParts.slice(-2).join('.');
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function isLottieOrWafJson(rawJson: unknown): boolean {
+  if (!isPlainObject(rawJson)) return false;
+  if ('layers' in rawJson && 'fr' in rawJson && 'v' in rawJson) return true;
+  if ('awswaf_session_storage' in rawJson || ('token' in rawJson && 'inputs' in rawJson && Object.keys(rawJson).length <= 3)) {
+    return true;
+  }
+  return false;
+}
+
 export function normalizeEndpoint(rawUrl: string): string {
   try {
     const base = typeof window !== 'undefined' ? window.location.href : 'http://localhost';
@@ -175,6 +203,7 @@ export function installNetworkMonitor(
   const shouldSkipUrl = (rawUrl: string): boolean => {
     if (rawUrl.includes('/__dom_blame/')) return true;
     if (config.mcpBridgeUrl && rawUrl.startsWith(config.mcpBridgeUrl)) return true;
+    if (NOISE_URL_RE.test(rawUrl)) return true;
     return false;
   };
 
@@ -216,31 +245,35 @@ export function installNetworkMonitor(
     const response = await nativeFetch(nextInput, nextInit);
     const durationMs = Math.round((performance.now() - startTime) * 10) / 10;
 
-    const sqlHeader = response.headers.get('x-dom-blame-sql');
-    const traceEndpointUrl = response.headers.get('x-dom-blame-trace-url') ?? undefined;
+    const sqlHeader = sameOrigin ? response.headers.get('x-dom-blame-sql') : null;
+    const traceEndpointUrl = sameOrigin ? (response.headers.get('x-dom-blame-trace-url') ?? undefined) : undefined;
     const sqlQueries = parseSqlHeader(sqlHeader);
     const contentType = response.headers.get('content-type') ?? '';
     const normEndpoint = normalizeEndpoint(urlStr);
+    const thirdParty = !isSameSiteUrl(urlStr);
 
-    let record: NetworkRecord | null = null;
     if (contentType.toLowerCase().includes('json')) {
       try {
         const cloned = response.clone();
-        const rawJson = await cloned.json();
-        record = {
-          id: traceId,
-          method,
-          url: urlStr,
-          normalizedEndpoint: normEndpoint,
-          status: response.status,
-          durationMs,
-          timestamp: Date.now(),
-          fields: flattenJson(rawJson),
-          sqlQueries,
-          rawJson,
-          traceEndpointUrl,
-        };
-        pushRecord(record);
+        const rawText = await cloned.text();
+        const rawJson = JSON.parse(rawText);
+        if (!isLottieOrWafJson(rawJson)) {
+          pushRecord({
+            id: traceId,
+            method,
+            url: urlStr,
+            normalizedEndpoint: normEndpoint,
+            status: response.status,
+            durationMs,
+            timestamp: Date.now(),
+            payloadBytes: rawText.length,
+            isThirdParty: thirdParty,
+            fields: flattenJson(rawJson),
+            sqlQueries,
+            rawJson,
+            traceEndpointUrl,
+          });
+        }
       } catch {
         // Non-parseable JSON body
       }
@@ -263,6 +296,8 @@ export function installNetworkMonitor(
         status: response.status,
         durationMs,
         timestamp: Date.now(),
+        payloadBytes: 0,
+        isThirdParty: thirdParty,
         fields: [],
         sqlQueries,
         rawJson: null,
@@ -317,18 +352,28 @@ export function installNetworkMonitor(
         this.addEventListener('loadend', () => {
           const durationMs = Math.round((performance.now() - meta.startTime) * 10) / 10;
           const ct = this.getResponseHeader('content-type') ?? '';
-          const sqlHeader = this.getResponseHeader('x-dom-blame-sql');
-          const traceEndpointUrl = this.getResponseHeader('x-dom-blame-trace-url') ?? undefined;
+          const sqlHeader = meta.sameOrigin ? this.getResponseHeader('x-dom-blame-sql') : null;
+          const traceEndpointUrl = meta.sameOrigin
+            ? (this.getResponseHeader('x-dom-blame-trace-url') ?? undefined)
+            : undefined;
           let rawJson: unknown = null;
+          let payloadBytes = 0;
           if (ct.includes('json') || this.responseType === 'json') {
             try {
-              rawJson = this.responseType === 'json'
-                ? this.response
-                : JSON.parse(this.responseText || 'null');
+              if (this.responseType === 'json') {
+                rawJson = this.response;
+                payloadBytes = rawJson !== null ? JSON.stringify(rawJson).length : 0;
+              } else {
+                const txt = this.responseText || 'null';
+                payloadBytes = txt.length;
+                rawJson = JSON.parse(txt);
+              }
             } catch {
               rawJson = null;
+              payloadBytes = 0;
             }
           }
+          if (isLottieOrWafJson(rawJson)) return;
           pushRecord({
             id: meta.traceId,
             method: meta.method,
@@ -337,6 +382,8 @@ export function installNetworkMonitor(
             status: this.status,
             durationMs,
             timestamp: Date.now(),
+            payloadBytes,
+            isThirdParty: !isSameSiteUrl(meta.url),
             fields: rawJson !== null ? flattenJson(rawJson) : [],
             sqlQueries: parseSqlHeader(sqlHeader),
             rawJson,

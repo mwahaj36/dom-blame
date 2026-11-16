@@ -15,13 +15,22 @@ export { detectRequestStorms, normalizeEndpoint } from './network';
 
 const DEFAULT_BRIDGE_URL = 'http://127.0.0.1:4119';
 
+function isLocalDevHost(): boolean {
+  if (typeof window === 'undefined') return true;
+  const h = window.location.hostname.toLowerCase();
+  return h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h.endsWith('.local');
+}
+
 let activeInstance: DomBlameApi | null = null;
 
 export function initDomBlame(userConfig: DomBlameConfig = {}): DomBlameApi {
   if (activeInstance) return activeInstance;
 
+  const localHost = isLocalDevHost();
   const config: DomBlameConfig = {
-    mcpBridgeUrl: userConfig.mcpBridgeUrl === undefined ? DEFAULT_BRIDGE_URL : userConfig.mcpBridgeUrl,
+    mcpBridgeUrl: userConfig.mcpBridgeUrl === undefined
+      ? (localHost ? DEFAULT_BRIDGE_URL : null)
+      : userConfig.mcpBridgeUrl,
     traceEndpointBase: userConfig.traceEndpointBase ?? '/__dom_blame/trace',
     showDock: userConfig.showDock ?? true,
     enableKeyboard: userConfig.enableKeyboard ?? true,
@@ -51,7 +60,7 @@ export function initDomBlame(userConfig: DomBlameConfig = {}): DomBlameApi {
     const elementInfo = inspectElementNode(el);
     let resolution = resolveElementLineage(elementInfo, network.records, network.propertyMisses);
 
-    // Hydrate SQL traces lazily if response header wasn't populated
+    // Hydrate SQL traces lazily only when server advertised a trace URL or running on localhost
     const traceIdsToHydrate = new Set<string>();
     for (const m of resolution.lineageMatches) {
       if (m.sqlQueries.length === 0) traceIdsToHydrate.add(m.traceId);
@@ -60,12 +69,13 @@ export function initDomBlame(userConfig: DomBlameConfig = {}): DomBlameApi {
       if (d.sqlQueries.length === 0) traceIdsToHydrate.add(d.traceId);
     }
     if (traceIdsToHydrate.size > 0) {
-      await Promise.all(
-        network.records
-          .filter((r) => traceIdsToHydrate.has(r.id))
-          .map((r) => network.hydrateSqlTrace(r))
+      const candidates = network.records.filter(
+        (r) => traceIdsToHydrate.has(r.id) && (Boolean(r.traceEndpointUrl) || localHost)
       );
-      resolution = resolveElementLineage(elementInfo, network.records, network.propertyMisses);
+      if (candidates.length > 0) {
+        await Promise.all(candidates.map((r) => network.hydrateSqlTrace(r)));
+        resolution = resolveElementLineage(elementInfo, network.records, network.propertyMisses);
+      }
     }
 
     const report = getOverfetchReport();
